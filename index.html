@@ -54,11 +54,10 @@ input,textarea{font-family:inherit;color:var(--ink)}
 .fld input,.fld textarea{display:block;width:100%;padding:10px 12px;font-size:13px;background:var(--surface);border:1px solid var(--line);border-radius:2px;transition:border-color .15s}
 .fld input:focus,.fld textarea:focus{border-color:var(--accent)}
 .fld input[readonly],.fld textarea[readonly]{background:var(--surface);cursor:text}
-/* 자동입력 차단용으로 type=search 를 쓰므로 검색칸 기본 외형을 지웁니다 */
-.fld input[type=search]{-webkit-appearance:none;appearance:none}
-.fld input[type=search]::-webkit-search-decoration,
-.fld input[type=search]::-webkit-search-cancel-button,
-.fld input[type=search]::-webkit-search-results-button{-webkit-appearance:none;display:none}
+/* 브라우저 자동입력을 원천 차단하기 위해 입력칸 대신 쓰는 편집영역 */
+.cein{display:block;width:100%;padding:10px 12px;font-size:13px;background:var(--surface);border:1px solid var(--line);border-radius:2px;min-height:38px;line-height:1.4;outline:none;white-space:pre;overflow-x:auto}
+.cein:focus{border-color:var(--accent)}
+.cein:empty:before{content:attr(data-ph);color:var(--ink-2);opacity:.55}
 .fld textarea{resize:vertical;line-height:1.75;font-size:13.5px}
 .bigfld label{display:flex;align-items:baseline;justify-content:space-between;gap:12px}
 .bigfld label em{font-style:normal;font-family:var(--mono);font-size:10px;letter-spacing:.06em;color:var(--ink-3);text-transform:uppercase;font-weight:500}
@@ -234,9 +233,9 @@ input,textarea{font-family:inherit;color:var(--ink)}
   </div>
 
   <div class="grid4">
-    <div class="fld"><label for="fName">학생 이름</label><input id="fName" autocomplete="off" spellcheck="false"></div>
-    <div class="fld"><label for="fMentor">담당 멘토</label><input id="fMentor" autocomplete="off" spellcheck="false"></div>
-    <div class="fld"><label for="fTarget">희망 분야</label><input id="fTarget" autocomplete="off" spellcheck="false" placeholder="비워두면 자동"></div>
+    <div class="fld"><label for="fName">학생 이름</label><div class="cein" id="fName" contenteditable="true" role="textbox" aria-label="학생 이름"></div></div>
+    <div class="fld"><label for="fMentor">담당 멘토</label><div class="cein" id="fMentor" contenteditable="true" role="textbox" aria-label="담당 멘토"></div></div>
+    <div class="fld"><label for="fTarget">희망 분야</label><div class="cein" id="fTarget" contenteditable="true" role="textbox" aria-label="희망 분야" data-ph="비워두면 자동"></div></div>
     <div class="fld"><label for="fDate">컨택일</label><input id="fDate" type="date"></div>
   </div>
 
@@ -422,19 +421,25 @@ function applyEditors(){
   if(ref) REFERENCE = ref;
 }
 
-async function callClaude(content, maxTokens){
-  let res;
+async function callClaude(content, maxTokens, prefill){
+  /* prefill: 응답의 첫 글자를 미리 '{' 로 넣어둡니다.
+     그러면 모델이 설명문이나 인사말로 시작할 수 없고 반드시 JSON이 나옵니다.
+     "예상과 다른 형식의 응답" 오류의 원인이 이것이었습니다.               */
+  const msgs = [{role:'user',content}];
+  if(prefill) msgs.push({role:'assistant',content:'{'});
 
-  if(WORKER_URL){
-    /* 운영 방식 — Worker가 키를 들고 대신 호출합니다 */
-    const pass = $('fPass').value.trim();
-    if(!pass){ throw new Error('팀 비밀번호를 입력해 주세요. 설정에서 넣을 수 있습니다.'); }
-    res = await fetch(WORKER_URL,{
-      method:'POST',
-      headers:{'Content-Type':'application/json','X-Team-Pass':pass},
-      body: JSON.stringify({max_tokens:maxTokens||3000, messages:[{role:'user',content}]})
-    });
-  }else{
+  async function send(withPrefill){
+    const m = withPrefill ? msgs : [{role:'user',content}];
+    if(WORKER_URL){
+      /* 운영 방식 — Worker가 키를 들고 대신 호출합니다 */
+      const pass = $('fPass').value.trim();
+      if(!pass){ throw new Error('팀 비밀번호를 입력해 주세요. 설정에서 넣을 수 있습니다.'); }
+      return fetch(WORKER_URL,{
+        method:'POST',
+        headers:{'Content-Type':'application/json','X-Team-Pass':pass},
+        body: JSON.stringify({max_tokens:maxTokens||3000, messages:m})
+      });
+    }
     /* 테스트 방식 — 브라우저에서 직접 호출. 키가 노출되니 혼자 쓸 때만 */
     const key = $('fKey').value.trim();
     const headers = {'Content-Type':'application/json'};
@@ -443,11 +448,15 @@ async function callClaude(content, maxTokens){
       headers['anthropic-version']='2023-06-01';
       headers['anthropic-dangerous-direct-browser-access']='true';
     }
-    res = await fetch('https://api.anthropic.com/v1/messages',{
+    return fetch('https://api.anthropic.com/v1/messages',{
       method:'POST', headers,
-      body: JSON.stringify({model:'claude-sonnet-5', max_tokens:key?(maxTokens||3000):1000, messages:[{role:'user',content}]})
+      body: JSON.stringify({model:'claude-sonnet-5', max_tokens:key?(maxTokens||3000):1000, messages:m})
     });
   }
+
+  let res = await send(!!prefill);
+  /* 서버가 프리필 방식을 받지 않으면 예전 방식으로 한 번 더 시도합니다 */
+  if(!res.ok && prefill && res.status!==401) res = await send(false);
 
   if(!res.ok){
     if(res.status===401) throw new Error('팀 비밀번호가 맞지 않습니다.');
@@ -456,13 +465,19 @@ async function callClaude(content, maxTokens){
   }
   const data = await res.json();
   if(!data.content) throw new Error('응답에 내용이 없습니다. 다시 실행해 주세요.');
-  return data.content.filter(b=>b.type==='text').map(b=>b.text).join('');
+  const out = data.content.filter(b=>b.type==='text').map(b=>b.text).join('');
+  /* 프리필로 넣은 '{' 는 응답에 포함되지 않으므로 다시 붙여줍니다 */
+  return (prefill && !out.trimStart().startsWith('{')) ? '{'+out : out;
 }
 
 function parseJSON(t){
   const s = t.replace(/```json|```/g,'').trim();
   const a=s.indexOf('{'), b=s.lastIndexOf('}');
-  if(a<0) throw new Error('예상과 다른 형식의 응답입니다. 다시 실행해 주세요.');
+  if(a<0){
+    /* 무엇이 왔는지 보여줍니다. 원인 파악 없이 다시 실행해도 같은 결과가 나옵니다 */
+    const head = s.slice(0,120).replace(/\s+/g,' ') || '(빈 응답)';
+    throw new Error(`JSON이 아닌 응답이 왔습니다 → ${head}`);
+  }
   if(b>a){ try{ return JSON.parse(s.slice(a,b+1)); }catch(e){} }
   const cut=s.slice(a);
   for(let i=cut.length;i>20;i--){
@@ -537,7 +552,7 @@ ${txt}
 "next":"","unverified":[]}`;
 
   try{
-    note = parseJSON(await callClaude(prompt, 3000));
+    note = parseJSON(await callClaude(prompt, 4000, true));
     if(!$('fTarget').value.trim() && note.target) $('fTarget').value = note.target;
     showDoc();
     setStatus('');
@@ -762,22 +777,31 @@ $('btnSave').onclick = ()=>{
 
 /* ══ 부팅 ══ */
 (function(){
-  /* Chrome 자동입력 차단
-     Chrome은 autocomplete="off" 를 무시하지만, 검색칸(type=search)은
-     주소·이메일 자동입력 대상에서 제외합니다. 읽기전용으로 잠그는 방식보다
-     확실하고, 칸을 눌렀을 때 커서가 튀는 문제도 없습니다.               */
-  const rnd = Math.random().toString(36).slice(2,10);
-  ['fName','fMentor','fTarget'].forEach((id,i)=>{
+  /* Chrome 자동입력 원천 차단
+     Chrome은 autocomplete="off" 를 무시하고, 읽기전용 잠금이나 type=search 로도
+     끝까지 막히지 않습니다. 그래서 이름·멘토·희망분야 칸은 <input> 이 아니라
+     편집영역(contenteditable)으로 만들었습니다. 브라우저는 편집영역에는
+     자동입력을 하지 않으므로 이메일이 끼어들 여지가 아예 없습니다.
+     아래에서 .value 를 붙여주므로 나머지 코드는 전과 똑같이 동작합니다.   */
+  ['fName','fMentor','fTarget'].forEach(id=>{
     const el = $(id); if(!el) return;
-    el.setAttribute('type','search');
-    el.setAttribute('name', `nf_${rnd}_${i}`);
-    el.setAttribute('autocomplete','off');
-    el.setAttribute('data-lpignore','true');
-    el.setAttribute('data-form-type','other');
+    Object.defineProperty(el, 'value', {
+      get(){ return el.textContent.replace(/\s+/g,' ').trim(); },
+      set(v){ el.textContent = v==null ? '' : String(v); },
+      configurable: true
+    });
+    /* 줄바꿈 금지 — 한 줄 입력칸처럼 동작시킵니다 */
+    el.addEventListener('keydown', e=>{ if(e.key==='Enter'){ e.preventDefault(); el.blur(); } });
+    /* 붙여넣기는 서식 없는 글자만 받습니다 */
+    el.addEventListener('paste', e=>{
+      e.preventDefault();
+      const t = (e.clipboardData||window.clipboardData).getData('text').replace(/\s+/g,' ').trim();
+      document.execCommand('insertText', false, t);
+    });
   });
   ['fContact'].forEach((id,i)=>{
     const el = $(id); if(!el) return;
-    el.setAttribute('name', `nt_${rnd}_${i}`);
+    el.setAttribute('name', `nt_${Math.random().toString(36).slice(2,10)}_${i}`);
     el.setAttribute('autocomplete','off');
     el.setAttribute('data-lpignore','true');
   });
