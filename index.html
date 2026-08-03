@@ -154,18 +154,26 @@ input,textarea{font-family:inherit;color:var(--ink)}
 .cfgsec{border-top:1px solid var(--hair);padding:20px 0 0;margin-top:20px}
 .cfgsec h4{font-family:var(--mono);font-size:9.5px;font-weight:600;letter-spacing:.15em;text-transform:uppercase;color:var(--accent);margin:0 0 12px}
 .masterbox{border:1px solid var(--line);background:#FAFBFC;max-height:220px;overflow-y:auto}
-.crow{display:grid;grid-template-columns:104px 1fr 22px;gap:8px;align-items:center;padding:6px 9px;border-bottom:1px solid var(--hair)}
+.crow{display:grid;grid-template-columns:100px 1fr 62px 22px;gap:7px;align-items:center;padding:6px 9px;border-bottom:1px solid var(--hair)}
 .crow:last-child{border-bottom:0}
 .crow input{width:100%;border:0;background:transparent;padding:3px;font-size:12px;line-height:1.5}
 .crow input.code{font-family:var(--mono);font-size:10.5px;font-weight:500;color:var(--accent-deep)}
+.crow input.mode{font-size:10.5px;color:var(--ink-3);text-align:center}
 .crow input:focus{background:#fff;outline:1px solid var(--accent)}
 .crow button{border:0;background:transparent;color:var(--ink-3);font-size:15px;line-height:1;padding:0}
 .crow button:hover{color:var(--key)}
+.chead{display:grid;grid-template-columns:100px 1fr 62px 22px;gap:7px;padding:6px 9px;border-bottom:1px solid var(--line);background:#F4F6F7;font-family:var(--mono);font-size:8.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3)}
+.chead span:nth-child(3){text-align:center}
 .duo{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:11px}
 .mini{border:1px solid var(--line);background:#fff;height:36px;padding:0 10px;font-size:12px;font-weight:600;border-radius:2px}
+.mini.wide{width:100%;margin-top:11px}
+.mini.go{background:var(--accent);border-color:var(--accent);color:#fff}
+.mini.go:hover{background:#0C8298;border-color:#0C8298;color:#fff}
 .mini:hover{border-color:var(--accent);color:var(--accent)}
 .mini:disabled{opacity:.4;cursor:not-allowed}
+.cfgbox .fld textarea{font-family:var(--mono);font-size:11.5px;line-height:1.7}
 .count{font-family:var(--mono);font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);margin-top:10px}
+.count.warnline{color:var(--warn);font-weight:600}
 .hint{font-size:11.5px;color:var(--ink-3);line-height:1.7;margin:11px 0 0}
 .hint.warn{color:var(--warn)}
 .hint code{font-family:var(--mono);font-size:11px;color:var(--accent-deep)}
@@ -181,7 +189,7 @@ input,textarea{font-family:inherit;color:var(--ink)}
   .sec{margin-bottom:36px}
   .courses li,.later li,.tips li{grid-template-columns:1fr;gap:3px}
   .cfgbox{padding:22px 18px 26px}
-  .crow{grid-template-columns:84px 1fr 20px}
+  .crow,.chead{grid-template-columns:78px 1fr 50px 20px;gap:5px}
 }
 @media print{
   @page{size:A4;margin:14mm}
@@ -217,15 +225,15 @@ input,textarea{font-family:inherit;color:var(--ink)}
   </div>
 
   <div class="grid4">
-    <div class="fld"><label for="fName">학생 이름</label><input id="fName" placeholder="남세라"></div>
-    <div class="fld"><label for="fMentor">담당 멘토</label><input id="fMentor" placeholder="봉봉 멘토"></div>
-    <div class="fld"><label for="fTarget">희망 분야</label><input id="fTarget" placeholder="비워두면 자동"></div>
+    <div class="fld"><label for="fName">학생 이름</label><input id="fName" autocomplete="off" spellcheck="false"></div>
+    <div class="fld"><label for="fMentor">담당 멘토</label><input id="fMentor" autocomplete="off" spellcheck="false"></div>
+    <div class="fld"><label for="fTarget">희망 분야</label><input id="fTarget" autocomplete="off" spellcheck="false" placeholder="비워두면 자동"></div>
     <div class="fld"><label for="fDate">컨택일</label><input id="fDate" type="date"></div>
   </div>
 
   <div class="fld bigfld">
     <label for="fContact">컨택 타이핑 내용 <em>필수 · 학생 표현이 그대로 살아납니다</em></label>
-    <textarea id="fContact" rows="15" placeholder="컨택(전화) 타이핑 내용을 그대로 붙여넣으세요.
+    <textarea id="fContact" rows="15" autocomplete="off" spellcheck="false" placeholder="컨택(전화) 타이핑 내용을 그대로 붙여넣으세요.
 
 학생이 쓴 표현을 고치지 말고 그대로 남겨주세요.
 그 문장이 노트에 되살아나는 것이 이 문서의 핵심입니다."></textarea>
@@ -252,17 +260,37 @@ input,textarea{font-family:inherit;color:var(--ink)}
 <div class="cfg" id="cfg">
   <div class="cfgbox">
     <h3>설정</h3>
-    <p class="lead">한 번만 손대는 곳입니다. 멘토들이 매번 볼 화면이 아닙니다.</p>
+    <p class="lead">여기서 고친 뒤 <b>knowledge.json 내려받기</b>로 파일을 만들어 GitHub에 올리면 팀 전체에 반영됩니다.</p>
 
     <div class="cfgsec">
-      <h4>등록된 커리큘럼</h4>
+      <h4>개설 과정</h4>
+      <div class="count" id="kbState">확인 중…</div>
       <div class="masterbox" id="masterBox"></div>
       <div class="count" id="mCount">0개</div>
-      <div class="duo">
-        <button class="mini" id="btnAdd">과정 추가</button>
-        <button class="mini" id="btnSave">curriculum.json 내려받기</button>
+      <button class="mini wide" id="btnAdd">과정 추가</button>
+      <p class="hint">코드 · 학습 내용 · 대면 여부 순입니다. 코드는 문서에 그대로 인쇄되니 실제 표기와 같게 넣으세요.</p>
+    </div>
+
+    <div class="cfgsec">
+      <h4>실제 일정 · 조건</h4>
+      <div class="fld">
+        <textarea id="fFacts" rows="6" autocomplete="off" spellcheck="false"></textarea>
       </div>
-      <p class="hint">내려받은 <code>curriculum.json</code>을 <code>index.html</code>과 같은 폴더에 두면 다음부터 자동으로 읽습니다.</p>
+      <p class="hint warn">한 줄에 하나씩. AI는 여기 적힌 것만 인용합니다. 없는 마감이나 할인을 적으면 학생이 상담에서 알게 되고 그 순간 신뢰가 끝납니다.</p>
+    </div>
+
+    <div class="cfgsec">
+      <h4>기준 노트</h4>
+      <div class="fld">
+        <textarea id="fRef" rows="8" autocomplete="off" spellcheck="false"></textarea>
+      </div>
+      <p class="hint">AI가 이 어조와 밀도를 따라갑니다. 잘 나온 노트가 생기면 <code>[기준 예시]</code> 부분을 그것으로 교체하세요. <code>[이 문서의 특징]</code>은 남겨두세요.</p>
+    </div>
+
+    <div class="cfgsec">
+      <h4>저장</h4>
+      <button class="mini wide go" id="btnSave">knowledge.json 내려받기</button>
+      <p class="hint">위에서 고친 내용이 파일로 만들어집니다. 그 파일을 GitHub의 <code>preconsult</code> 폴더에 올려 기존 <code>knowledge.json</code>을 덮어쓰면 팀 전체에 반영됩니다. 이 화면의 수정은 새로고침하면 사라지니 반드시 내려받아 올려주세요.</p>
     </div>
 
     <div class="cfgsec">
@@ -273,7 +301,7 @@ input,textarea{font-family:inherit;color:var(--ink)}
         <button class="mini" id="btnRead" disabled>읽어서 표로 만들기</button>
       </div>
       <div class="count" id="iCount">선택된 이미지 없음</div>
-      <p class="hint">최초 1회용입니다. 읽은 뒤 확인하고 내려받아 보관하세요.</p>
+      <p class="hint">최초 1회용입니다. 읽은 뒤 확인하고 <code>knowledge.json</code>으로 내려받아 리포에 올리세요.</p>
     </div>
 
     <div class="cfgsec">
@@ -305,64 +333,26 @@ input,textarea{font-family:inherit;color:var(--ink)}
    비워두면 브라우저에서 직접 호출합니다 — 혼자 테스트할 때만 쓰세요.   */
 const WORKER_URL = "https://preconsult-api.t9vely.workers.dev";
 
-/* [1] 개설 커리큘럼 — 같은 폴더의 curriculum.json 이 있으면 그 파일이 우선합니다.
-       형식: {"courses":[{"code":"","name":"","mode":""}]}          */
-const CURRICULUM = [
+/* ── 아래 세 값은 knowledge.json 이 있으면 그 파일로 대체됩니다.
+      knowledge.json 이 없을 때만 쓰이는 예비값입니다.
+      실제 관리는 knowledge.json 에서 하세요.                       */
+
+let CURRICULUM = [
   {code:"MAYA 1~2", name:"인터페이스 이해, 모델링 툴 — 자동차·캐릭터 바디 기초 형태감", mode:"대면"},
-  {code:"MAYA 3~4", name:"UV·머티리얼·텍스처링, 기본 라이팅", mode:"혼합"},
   {code:"MAYA 5", name:"리깅 핵심 — 조인트, 컨스트레인트, IK/FK 리깅 구조", mode:"대면"},
   {code:"MAYA 6", name:"애니메이션 — 피커 제작, 걷기·뛰기 사이클, 액션씬", mode:"대면"},
-  {code:"NUKE 1~2", name:"노드 기반 합성, 플래너 트래킹, 3D 매트페인팅 배경 합성", mode:"혼합"},
-  {code:"VFX 기초", name:"라이팅·렌더링·룩뎁 최적화를 통한 화면 연출", mode:"혼합"},
-  {code:"AI 워크플로우", name:"프롬프트 활용 레퍼런스·배경 소스 단기 생성", mode:"비대면"},
   {code:"포트폴리오 디렉팅", name:"SWOT 자기분석, 타겟기업 분석, 1~2분 쇼릴 제작", mode:"대면"}
 ];
 
-/* [2] 실제 일정·조건 사실
-   ★ 중요 ★ AI는 여기 적힌 것만 인용합니다. 없는 마감을 만들어내지 않습니다.
-   사실이 아닌 내용을 적으면 상담에서 그대로 드러납니다. 실제 정보만 넣으세요.  */
-const SCHEDULE_FACTS = `
-- 정규반은 매월 개강하되 대면 수업 요일은 선착순 배정
-- 9월 시작 시 내년 상반기 채용 시즌에 포트폴리오 완성 가능
-- 10월 이후 시작 시 포트폴리오 완성이 내년 하반기로 이동
-- 리깅·애니메이션 대면 정규반은 요일별 정원이 있어 오프 요일 확보가 먼저 필요
-`;
+let SCHEDULE_FACTS = `- 정규반은 매월 개강하되 대면 수업 요일은 선착순 배정`;
 
-/* [3] 기준 노트 — AI가 이 어조와 밀도를 따라갑니다.
-   잘 나온 노트가 생기면 이 블록을 그것으로 갈아끼우세요.               */
-const REFERENCE = `
-[기준 예시]
-
-전화에서 들은 이야기
-- 디자인 전공이지만 실무를 1년 하고 나온 뒤 지금은 동물병원 스케줄 근무 중
-- "감각이 굳었다"는 말을 여러 번 하셨습니다
-- 마야 툴 난이도가 높아 보여 시작 자체가 부담스럽다
-- 리깅과 애니메이션 파트로 가고 싶다는 방향은 이미 분명하다
-- 교대 근무와 병행할 체력이 될지가 가장 큰 걱정이다
-
-상황을 이렇게 봅니다
-막힌 것은 감각이 아니라 툴입니다.
-비례와 움직임을 읽는 눈은 전공 4년 동안 이미 만들어졌습니다. 지금 어려운 것은
-그 눈이 본 것을 마야로 옮기는 손이고, 손은 훈련 기간의 문제입니다. 감각이
-굳었다고 느끼는 건 손이 안 따라와서 생기는 착각입니다.
-
-이건 약점이 아닙니다
-교대 근무는 오히려 평일 오전을 비웁니다.
-직장인이 저녁반에 몰리는 시간대를 피해 1:1 피드백 밀도가 가장 높은 시간에
-들어올 수 있습니다. 주 5일을 채우는 사람보다 주 2일을 제대로 쓰는 사람이
-포트폴리오를 먼저 끝냅니다.
-
-액션
-상담에서 오프 요일을 확인해 대면 수업 요일을 먼저 잡는 것이 첫 순서입니다.
-
-[이 문서의 특징]
+let REFERENCE = `[이 문서의 특징]
 - 학생이 쓴 표현을 그대로 인용해 "정확히 들었다"를 먼저 증명한다
 - 막연한 불안에 이름을 붙인다. 이름이 붙으면 해결 가능해 보인다
 - 약점을 반드시 조건으로 뒤집는다. 위로가 아니라 재해석이다
 - 1단계는 구체적으로, 이후는 윤곽만. 나머지는 만나서 정한다
 - 겁주지 않는다. 시점 차이는 사실에 근거한 산수로만 말한다
-- 문장은 짧고 단정하다. 감탄사와 미사여구를 쓰지 않는다
-`;
+- 문장은 짧고 단정하다. 감탄사와 미사여구를 쓰지 않는다`;
 
 /* ══════════════════════════════════════════════════════════════
    ▲▲▲ 설정 끝 ▲▲▲
@@ -375,20 +365,63 @@ const ed  = s => `<span contenteditable="true">${esc(s)}</span>`;
 let master = CURRICULUM.map(c=>({...c}));
 let images = [];
 let note = null;
+let kbLoaded = false;
 
 function setStatus(cls,msg){ const el=$('status'); el.className='status '+(cls||''); el.textContent=msg||''; }
 
-(async function(){
+/* ══ knowledge.json 읽기 ══
+   같은 폴더의 knowledge.json 에서 커리큘럼·일정사실·기준노트를 가져옵니다.
+   이 파일만 고치면 되고 index.html 은 손대지 않습니다.               */
+async function loadKnowledge(){
   try{
-    const r = await fetch('curriculum.json',{cache:'no-store'});
-    if(!r.ok) return;
+    const r = await fetch('knowledge.json?t='+Date.now(),{cache:'no-store'});
+    if(!r.ok) throw new Error('파일 없음');
     const j = await r.json();
+
     if(Array.isArray(j.courses) && j.courses.length){
-      master = j.courses.map(c=>({code:c.code||'',name:c.name||'',mode:c.mode||''}));
-      drawMaster();
+      CURRICULUM = j.courses.map(c=>({code:c.code||'',name:c.name||'',mode:c.mode||''}));
+      master = CURRICULUM.map(c=>({...c}));
     }
-  }catch(e){}
-})();
+    if(Array.isArray(j.schedule_facts) && j.schedule_facts.length){
+      SCHEDULE_FACTS = j.schedule_facts.map(x=>'- '+x).join('\n');
+    }else if(typeof j.schedule_facts === 'string' && j.schedule_facts.trim()){
+      SCHEDULE_FACTS = j.schedule_facts;
+    }
+    if(typeof j.reference === 'string' && j.reference.trim()){
+      REFERENCE = j.reference;
+    }else if(Array.isArray(j.reference)){
+      REFERENCE = j.reference.join('\n');
+    }
+
+    kbLoaded = true;
+    drawMaster();
+    fillEditors();
+    $('kbState').textContent = `knowledge.json 적용됨 · 과정 ${master.length}개`;
+    $('kbState').className = 'count';
+  }catch(e){
+    kbLoaded = false;
+    drawMaster();
+    fillEditors();
+    $('kbState').textContent = 'knowledge.json 을 찾지 못해 예비값으로 동작 중입니다';
+    $('kbState').className = 'count warnline';
+  }
+}
+
+/* 설정 화면의 편집칸에 현재 값을 채웁니다 */
+function fillEditors(){
+  $('fFacts').value = SCHEDULE_FACTS.split('\n')
+    .map(l=>l.replace(/^\s*-\s*/,'').trim()).filter(Boolean).join('\n');
+  $('fRef').value = REFERENCE;
+}
+
+/* 편집칸의 내용을 실제 값으로 반영합니다 */
+function applyEditors(){
+  const facts = $('fFacts').value.split('\n')
+    .map(l=>l.replace(/^\s*-\s*/,'').trim()).filter(Boolean);
+  if(facts.length) SCHEDULE_FACTS = facts.map(x=>'- '+x).join('\n');
+  const ref = $('fRef').value.trim();
+  if(ref) REFERENCE = ref;
+}
 
 async function callClaude(content, maxTokens){
   let res;
@@ -448,7 +481,8 @@ $('btnRun').onclick = async ()=>{
   const txt = $('fContact').value.trim();
   if(!txt) return setStatus('err','컨택 타이핑 내용을 붙여넣어 주세요.');
   if(txt.length < 60) return setStatus('err','내용이 너무 짧습니다. 통화에서 나온 내용을 더 넣어주세요.');
-  if(!master.length) return setStatus('err','등록된 커리큘럼이 없습니다. 설정에서 확인하세요.');
+  if(!master.length) return setStatus('err','등록된 과정이 없습니다. 설정에서 추가하세요.');
+  applyEditors();
 
   $('btnRun').disabled = true;
   setStatus('busy','컨택 내용을 정리하는 중… 20초 정도 걸립니다.');
@@ -687,24 +721,44 @@ document.addEventListener('keydown', e=>{ if(e.key==='Escape') $('cfg').classLis
 
 function drawMaster(){
   const box=$('masterBox'); box.innerHTML='';
+  const head=document.createElement('div'); head.className='chead';
+  head.innerHTML='<span>코드</span><span>학습 내용</span><span>방식</span><span></span>';
+  box.appendChild(head);
   master.forEach((c,i)=>{
     const row=document.createElement('div'); row.className='crow';
-    row.innerHTML=`<input class="code" value="${esc(c.code)}" aria-label="과정 코드">
-                   <input value="${esc(c.name)}" aria-label="학습 내용">
+    row.innerHTML=`<input class="code" value="${esc(c.code)}" placeholder="MAYA 5" autocomplete="off" aria-label="과정 코드">
+                   <input value="${esc(c.name)}" placeholder="학습 내용" autocomplete="off" aria-label="학습 내용">
+                   <input class="mode" value="${esc(c.mode)}" placeholder="대면" autocomplete="off" aria-label="수업 방식">
                    <button aria-label="삭제">×</button>`;
     row.children[0].oninput=e=>c.code=e.target.value;
     row.children[1].oninput=e=>c.name=e.target.value;
-    row.children[2].onclick=()=>{master.splice(i,1);drawMaster();};
+    row.children[2].oninput=e=>c.mode=e.target.value;
+    row.children[3].onclick=()=>{master.splice(i,1);drawMaster();};
     box.appendChild(row);
   });
   $('mCount').textContent = master.length+'개';
   $('cCount').textContent = master.length+'개';
 }
-$('btnAdd').onclick = ()=>{ master.push({code:'',name:'',mode:''}); drawMaster(); };
+$('btnAdd').onclick = ()=>{
+  master.push({code:'',name:'',mode:''});
+  drawMaster();
+  const rows=$('masterBox').querySelectorAll('.crow');
+  const last=rows[rows.length-1];
+  if(last){ last.scrollIntoView({block:'nearest'}); last.children[0].focus(); }
+};
 $('btnSave').onclick = ()=>{
-  const blob=new Blob([JSON.stringify({courses:master},null,2)],{type:'application/json'});
+  applyEditors();
+  const facts = SCHEDULE_FACTS.split('\n').map(l=>l.replace(/^\s*-\s*/,'').trim()).filter(Boolean);
+  const courses = master.filter(c=>c.code.trim());
+  const out = {
+    "_안내": "이 파일만 고치면 됩니다. index.html은 손대지 않습니다. GitHub의 preconsult 폴더에 올려 기존 파일을 덮어쓰면 팀 전체에 반영됩니다.",
+    courses,
+    schedule_facts: facts,
+    reference: REFERENCE
+  };
+  const blob=new Blob([JSON.stringify(out,null,2)],{type:'application/json'});
   const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
-  a.download='curriculum.json'; a.click(); URL.revokeObjectURL(a.href);
+  a.download='knowledge.json'; a.click(); URL.revokeObjectURL(a.href);
 };
 $('btnPick').onclick = ()=> $('fileIn').click();
 $('fileIn').onchange = async e=>{
@@ -749,6 +803,7 @@ $('btnRead').onclick = async ()=>{
 (function(){
   $('fDate').value = new Date().toISOString().slice(0,10);
   drawMaster();
+  loadKnowledge();
 
   if(WORKER_URL){
     $('rowPass').hidden = false;
