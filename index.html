@@ -175,6 +175,9 @@ input,textarea{font-family:inherit;color:var(--ink)}
 .cfgbox .fld textarea{font-family:var(--mono);font-size:11.5px;line-height:1.7}
 .count{font-family:var(--mono);font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);margin-top:10px}
 .count.warnline{color:var(--warn);font-weight:600}
+.log{margin-top:10px;border:1px solid var(--line);background:#FAFBFC;padding:9px 11px;max-height:150px;overflow-y:auto;font-family:var(--mono);font-size:10.5px;line-height:1.75;color:var(--ink-2);white-space:pre-wrap}
+.log b{color:var(--key);font-weight:600}
+.log i{font-style:normal;color:var(--ok)}
 .hint{font-size:11.5px;color:var(--ink-3);line-height:1.7;margin:11px 0 0}
 .hint.warn{color:var(--warn)}
 .hint code{font-family:var(--mono);font-size:11px;color:var(--accent-deep)}
@@ -302,6 +305,7 @@ input,textarea{font-family:inherit;color:var(--ink)}
         <button class="mini" id="btnRead" disabled>읽어서 표로 만들기</button>
       </div>
       <div class="count" id="iCount">선택된 파일 없음</div>
+      <div class="log" id="diag" hidden></div>
       <div class="fld" style="margin-top:11px">
         <textarea id="fPaste" rows="4" autocomplete="off" spellcheck="false" placeholder="또는 커리큘럼 내용을 여기에 붙여넣으세요 (표를 복사해 넣어도 됩니다)"></textarea>
       </div>
@@ -326,11 +330,12 @@ input,textarea{font-family:inherit;color:var(--ink)}
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.min.mjs" type="module"></script>
-<script type="module">
-  import * as pdfjs from 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.min.mjs';
-  pdfjs.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.worker.min.mjs';
-  window.pdfjsLib = pdfjs;
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script>
+  if(window.pdfjsLib){
+    window.pdfjsLib.GlobalWorkerOptions.workerSrc =
+      'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  }
 </script>
 <script>
 /* ══════════════════════════════════════════════════════════════
@@ -787,6 +792,18 @@ function setPick(msg, warn){
   $('iCount').className = warn ? 'count warnline' : 'count';
 }
 
+/* 진행 상황 기록 — 무엇이 왜 실패했는지 화면에서 바로 보이게 합니다 */
+let diagLines = [];
+function diagReset(){ diagLines = []; $('diag').hidden = true; $('diag').innerHTML = ''; }
+function diag(msg, kind){
+  const tag = kind==='err' ? 'b' : kind==='ok' ? 'i' : 'span';
+  diagLines.push(`<${tag}>${esc(msg)}</${tag}>`);
+  const el = $('diag');
+  el.hidden = false;
+  el.innerHTML = diagLines.join('\n');
+  el.scrollTop = el.scrollHeight;
+}
+
 /* 이미지 축소 */
 function shrinkImage(file){
   return new Promise((ok,no)=>{
@@ -813,11 +830,24 @@ function canvasToSource(drawable, w, h){
 
 /* PDF 처리 — 텍스트 우선, 없으면 페이지 이미지 */
 async function readPdf(file){
-  if(!window.pdfjsLib) throw new Error('PDF 처리 모듈이 아직 준비되지 않았습니다. 잠시 후 다시 시도하세요.');
+  if(!window.pdfjsLib){
+    /* 모듈이 안 뜬 경우 — 원본 PDF를 그대로 보냅니다 (용량 제한 있음) */
+    diag(`${file.name}: PDF 모듈 없음 → 원본 전송 방식으로 처리`);
+    if(file.size > 4.5e6) throw new Error('PDF 모듈을 불러오지 못했고 파일이 4.5MB를 넘습니다');
+    const b64 = await new Promise((ok,no)=>{
+      const r=new FileReader();
+      r.onload=()=>ok(String(r.result).split(',')[1]);
+      r.onerror=()=>no(new Error('읽기 실패'));
+      r.readAsDataURL(file);
+    });
+    return [{kind:'pdf', b64}];
+  }
+
   const buf = await file.arrayBuffer();
   const pdf = await window.pdfjsLib.getDocument({data:buf}).promise;
   const out = [];
   let allText = '';
+  let imgPages = 0;
 
   for(let n=1; n<=pdf.numPages; n++){
     const page = await pdf.getPage(n);
@@ -826,47 +856,61 @@ async function readPdf(file){
     if(t.length > 40){
       allText += `\n[${file.name} · ${n}쪽]\n${t}\n`;
     }else{
-      /* 글자층이 없는 쪽만 이미지로 */
       const vp = page.getViewport({scale:2});
       const cv = document.createElement('canvas');
       cv.width = vp.width; cv.height = vp.height;
       await page.render({canvasContext: cv.getContext('2d'), viewport: vp}).promise;
       out.push(canvasToSource(cv, cv.width, cv.height));
+      imgPages++;
     }
     setPick(`${file.name} 읽는 중… ${n}/${pdf.numPages}쪽`);
   }
   if(allText.trim()) out.unshift({kind:'text', text:allText.trim()});
+  diag(`${file.name}: ${pdf.numPages}쪽 · 글자 ${allText.length.toLocaleString()}자` + (imgPages?` · 이미지 ${imgPages}쪽`:''), 'ok');
   return out;
 }
 
 $('fileIn').onchange = async e=>{
   sources = [];
+  diagReset();
   const done=[], failed=[];
+  const files = [...e.target.files];
+  diag(`파일 ${files.length}개 선택 · PDF 모듈 ${window.pdfjsLib?'준비됨':'없음'}`);
   setPick('자료 준비 중…');
 
-  for(const f of [...e.target.files]){
+  for(const f of files){
     const isPdf = f.type==='application/pdf' || /\.pdf$/i.test(f.name);
     const isImg = f.type.startsWith('image/');
     const isTxt = f.type.startsWith('text/') || /\.(txt|md|csv|tsv)$/i.test(f.name);
     try{
       if(isTxt){
         const t = await f.text();
-        if(t.trim()) sources.push({kind:'text', text:`[${f.name}]\n${t}`});
+        if(!t.trim()) throw new Error('내용이 비어 있음');
+        sources.push({kind:'text', text:`[${f.name}]\n${t}`});
+        diag(`${f.name}: 글자 ${t.length.toLocaleString()}자`, 'ok');
       }else if(isImg){
         sources.push(await shrinkImage(f));
+        diag(`${f.name}: 이미지 축소 완료`, 'ok');
       }else if(isPdf){
         (await readPdf(f)).forEach(x=>sources.push(x));
-      }else{ failed.push(f.name+' (지원 안 함)'); continue; }
+      }else{
+        throw new Error('지원하지 않는 형식');
+      }
       done.push(f.name);
-    }catch(err){ failed.push(f.name+' ('+err.message+')'); }
+    }catch(err){
+      failed.push(f.name);
+      diag(`${f.name}: 실패 — ${err.message}`, 'err');
+    }
   }
 
   const chars = sources.filter(s=>s.kind==='text').reduce((a,s)=>a+s.text.length,0);
   const imgs  = sources.filter(s=>s.kind==='image').length;
-  let msg = done.length ? `자료 ${done.length}개 준비 완료` : '선택된 파일 없음';
+  const pdfs  = sources.filter(s=>s.kind==='pdf').length;
+  let msg = done.length ? `자료 ${done.length}개 준비 완료` : '준비된 자료 없음';
   if(chars) msg += ` · 글자 ${chars.toLocaleString()}자`;
   if(imgs)  msg += ` · 이미지 ${imgs}장`;
-  if(failed.length) msg += ` · 실패: ${failed.join(', ')}`;
+  if(pdfs)  msg += ` · PDF ${pdfs}개`;
+  if(failed.length) msg += ` · 실패 ${failed.length}개`;
   setPick(msg, failed.length>0);
   refreshReadBtn();
 };
@@ -922,36 +966,64 @@ const READ_PROMPT = `위 자료는 교육기관의 커리큘럼표다. 자료에
 
 $('btnRead').onclick = async ()=>{
   const batches = buildBatches();
-  if(!batches.length){ setPick('읽을 자료가 없습니다.', true); return; }
+  if(!batches.length){ setPick('읽을 자료가 없습니다. 파일을 선택하거나 내용을 붙여넣어 주세요.', true); return; }
 
   $('btnRead').disabled = true;
   const merged = [];
   const seen = new Set();
-  let failed = 0;
+  const errors = [];
+  let empties = 0;
+
+  diag(`판독 시작 — ${batches.length}개 묶음`);
 
   for(let i=0;i<batches.length;i++){
     setPick(`판독 중… ${i+1}/${batches.length}`);
-    const content = batches[i].map(s =>
-      s.kind==='text'
-        ? {type:'text', text:s.text}
-        : {type:'image', source:{type:'base64', media_type:s.media, data:s.b64}}
+    const b = batches[i];
+    const nTxt = b.filter(x=>x.kind==='text').length;
+    const nImg = b.filter(x=>x.kind==='image').length;
+    const nPdf = b.filter(x=>x.kind==='pdf').length;
+    const content = b.map(x =>
+      x.kind==='text' ? {type:'text', text:x.text}
+      : x.kind==='pdf' ? {type:'document', source:{type:'base64', media_type:'application/pdf', data:x.b64}}
+      : {type:'image', source:{type:'base64', media_type:x.media, data:x.b64}}
     );
     content.push({type:'text', text:READ_PROMPT});
     try{
       const r = parseJSON(await callClaude(content, 4000));
-      (r.courses||[]).forEach(c=>{
-        const code=(c.code||'').trim();
-        if(!code) return;
+      const got = (r.courses||[]).filter(c=>c.code && String(c.code).trim());
+      if(!got.length){
+        empties++;
+        diag(`묶음 ${i+1}: 과정 없음 (글자 ${nTxt} 이미지 ${nImg} PDF ${nPdf})`);
+      }else{
+        diag(`묶음 ${i+1}: 과정 ${got.length}개 발견`, 'ok');
+      }
+      got.forEach(c=>{
+        const code=String(c.code).trim();
         const key = code.replace(/\s+/g,'').toLowerCase();
         if(seen.has(key)) return;
         seen.add(key);
-        merged.push({code, name:(c.name||'').trim(), mode:(c.mode||'').trim()});
+        merged.push({code, name:String(c.name||'').trim(), mode:String(c.mode||'').trim()});
       });
-    }catch(e){ failed++; }
+    }catch(e){
+      errors.push(e.message);
+      diag(`묶음 ${i+1}: 실패 — ${e.message}`, 'err');
+    }
   }
 
   if(!merged.length){
-    setPick(`판독 실패 — 과정을 찾지 못했습니다. 표가 선명한 자료로 다시 시도하거나 내용을 붙여넣어 주세요.`, true);
+    let why;
+    if(errors.length){
+      const first = errors[0];
+      why = /TOO_LARGE|MAXIMUM SIZE|413/i.test(first)
+        ? '자료 용량 초과 — 파일을 나눠 넣거나 표 내용을 붙여넣어 주세요.'
+        : /401|비밀번호/i.test(first) ? '팀 비밀번호를 확인해 주세요.'
+        : /credit|balance/i.test(first) ? 'API 크레딧이 부족합니다.'
+        : /429/.test(first) ? '요청이 몰렸습니다. 잠시 후 다시 시도하세요.'
+        : first;
+    }else{
+      why = '자료에서 커리큘럼 과정을 찾지 못했습니다. 아래 기록을 확인하고, 표 내용을 붙여넣어 보세요.';
+    }
+    setPick(`판독 실패 — ${why}`, true);
     refreshReadBtn();
     return;
   }
@@ -960,10 +1032,11 @@ $('btnRead').onclick = async ()=>{
   drawMaster();
   const unclear = master.filter(c=>(c.code+c.name).includes('?')).length;
   let msg = `과정 ${master.length}개를 읽었습니다.`;
-  if(unclear) msg += ` 글자를 확실히 못 읽은 항목 ${unclear}개(? 표시)를 고쳐주세요.`;
-  if(failed)  msg += ` 일부 묶음 ${failed}개는 실패했습니다 — 다시 실행하면 보완됩니다.`;
-  if(!unclear && !failed) msg += ' 위 표에서 확인 후 내려받으세요.';
-  setPick(msg, unclear>0 || failed>0);
+  if(unclear) msg += ` 못 읽은 항목 ${unclear}개(? 표시)를 고쳐주세요.`;
+  if(errors.length) msg += ` 실패한 묶음 ${errors.length}개 있음.`;
+  else if(empties) msg += ` 과정이 없는 묶음 ${empties}개는 건너뜀.`;
+  if(!unclear && !errors.length) msg += ' 표에서 확인 후 내려받으세요.';
+  setPick(msg, unclear>0 || errors.length>0);
   refreshReadBtn();
 };
 
