@@ -765,10 +765,41 @@ $('btnSave').onclick = ()=>{
 };
 $('btnPick').onclick = ()=> $('fileIn').click();
 
-/* PDF · 이미지 · 텍스트를 모두 받습니다 */
+/* PDF · 이미지 · 텍스트를 모두 받습니다.
+   이미지는 전송 전에 자동으로 줄입니다 — 원본 그대로 보내면 용량 초과가 납니다. */
+
+const MAX_EDGE = 1800;      // 이미지 최대 변 길이(px)
+const PDF_LIMIT = 4.5e6;    // PDF 개당 약 4.5MB
+
+function shrinkImage(file){
+  return new Promise((ok,no)=>{
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = ()=>{
+      URL.revokeObjectURL(url);
+      let {width:w, height:h} = img;
+      const scale = Math.min(1, MAX_EDGE/Math.max(w,h));
+      w = Math.round(w*scale); h = Math.round(h*scale);
+      const cv = document.createElement('canvas');
+      cv.width=w; cv.height=h;
+      const ctx = cv.getContext('2d');
+      ctx.fillStyle='#fff'; ctx.fillRect(0,0,w,h);
+      ctx.drawImage(img,0,0,w,h);
+      /* 표는 글자가 핵심이라 품질을 너무 낮추지 않습니다 */
+      const data = cv.toDataURL('image/jpeg',0.82).split(',')[1];
+      ok({kind:'image', media:'image/jpeg', b64:data});
+    };
+    img.onerror = ()=>{ URL.revokeObjectURL(url); no(new Error('이미지를 열 수 없습니다')); };
+    img.src = url;
+  });
+}
+
 $('fileIn').onchange = async e=>{
   images=[];
-  const names=[];
+  const names=[], skipped=[];
+  $('iCount').textContent='파일 준비 중…';
+  $('iCount').className='count';
+
   for(const f of [...e.target.files].slice(0,10)){
     const isPdf = f.type==='application/pdf' || /\.pdf$/i.test(f.name);
     const isImg = f.type.startsWith('image/');
@@ -776,26 +807,27 @@ $('fileIn').onchange = async e=>{
     try{
       if(isTxt){
         const t = await f.text();
-        if(t.trim()) images.push({kind:'text', text:`[파일 ${f.name}]\n${t.slice(0,20000)}`});
-      }else if(isPdf || isImg){
+        if(t.trim()) images.push({kind:'text', text:`[${f.name}]\n${t.slice(0,20000)}`});
+      }else if(isImg){
+        images.push(await shrinkImage(f));
+      }else if(isPdf){
+        if(f.size > PDF_LIMIT){ skipped.push(f.name+' (용량 초과)'); continue; }
         const b64 = await new Promise((ok,no)=>{
           const r=new FileReader();
           r.onload=()=>ok(String(r.result).split(',')[1]);
           r.onerror=()=>no(new Error('읽기 실패'));
           r.readAsDataURL(f);
         });
-        if(isPdf){
-          images.push({kind:'pdf', b64});
-        }else{
-          const media = f.type==='image/png' ? 'image/png'
-                      : f.type==='image/webp' ? 'image/webp' : 'image/jpeg';
-          images.push({kind:'image', media, b64});
-        }
-      }else{ continue; }
+        images.push({kind:'pdf', b64});
+      }else{ skipped.push(f.name+' (지원 안 함)'); continue; }
       names.push(f.name);
-    }catch(err){}
+    }catch(err){ skipped.push(f.name); }
   }
-  $('iCount').textContent = names.length ? `선택 ${names.length}개 — ${names.join(', ').slice(0,60)}` : '선택된 파일 없음';
+
+  let msg = names.length ? `선택 ${names.length}개` : '선택된 파일 없음';
+  if(skipped.length) msg += ` · 제외: ${skipped.join(', ')}`;
+  $('iCount').textContent = msg;
+  $('iCount').className = skipped.length ? 'count warnline' : 'count';
   refreshReadBtn();
 };
 
@@ -845,7 +877,10 @@ $('btnRead').onclick = async ()=>{
       + (unclear?` 글자를 확실히 못 읽은 항목 ${unclear}개(? 표시)를 고쳐주세요.`:' 위 표에서 확인 후 내려받으세요.');
     $('iCount').className = unclear ? 'count warnline' : 'count';
   }catch(e){
-    $('iCount').textContent='판독 실패 — '+e.message;
+    const m = /TOO_LARGE|MAXIMUM SIZE|413/i.test(e.message)
+      ? '자료 용량이 너무 큽니다. 파일 수를 줄이거나 PDF를 나눠서 넣어주세요. 텍스트로 붙여넣는 방법이 가장 확실합니다.'
+      : e.message;
+    $('iCount').textContent='판독 실패 — '+m;
     $('iCount').className='count warnline';
   }
   finally{ refreshReadBtn(); }
@@ -853,6 +888,17 @@ $('btnRead').onclick = async ()=>{
 
 /* ══ 부팅 ══ */
 (function(){
+  /* Chrome은 autocomplete="off" 를 무시합니다.
+     칸 이름을 매번 무작위로 바꾸면 저장된 값을 못 찾아 자동입력이 멈춥니다. */
+  const rnd = Math.random().toString(36).slice(2,10);
+  ['fName','fMentor','fTarget','fContact','fPaste'].forEach((id,i)=>{
+    const el = $(id); if(!el) return;
+    el.setAttribute('name', `nf_${rnd}_${i}`);
+    el.setAttribute('autocomplete', `nope-${rnd}`);
+    el.setAttribute('data-lpignore','true');
+    el.setAttribute('data-form-type','other');
+  });
+
   $('fDate').value = new Date().toISOString().slice(0,10);
   drawMaster();
   loadKnowledge();
