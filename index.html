@@ -294,14 +294,17 @@ input,textarea{font-family:inherit;color:var(--ink)}
     </div>
 
     <div class="cfgsec">
-      <h4>커리큘럼표 이미지로 등록</h4>
-      <input type="file" id="fileIn" accept="image/png,image/jpeg,image/webp" multiple hidden>
+      <h4>커리큘럼 파일로 등록</h4>
+      <input type="file" id="fileIn" accept="application/pdf,image/png,image/jpeg,image/webp,text/plain,.txt,.md,.csv" multiple hidden>
       <div class="duo">
-        <button class="mini" id="btnPick">이미지 선택</button>
+        <button class="mini" id="btnPick">파일 선택</button>
         <button class="mini" id="btnRead" disabled>읽어서 표로 만들기</button>
       </div>
-      <div class="count" id="iCount">선택된 이미지 없음</div>
-      <p class="hint">최초 1회용입니다. 읽은 뒤 확인하고 <code>knowledge.json</code>으로 내려받아 리포에 올리세요.</p>
+      <div class="count" id="iCount">선택된 파일 없음</div>
+      <div class="fld" style="margin-top:11px">
+        <textarea id="fPaste" rows="4" autocomplete="off" spellcheck="false" placeholder="또는 커리큘럼 내용을 여기에 붙여넣으세요 (표를 복사해 넣어도 됩니다)"></textarea>
+      </div>
+      <p class="hint">PDF · 이미지 · 텍스트 모두 됩니다. 여러 개 함께 넣어도 됩니다. 읽은 뒤 위 표에서 확인하고 <code>knowledge.json</code>으로 내려받아 리포에 올리세요.</p>
     </div>
 
     <div class="cfgsec">
@@ -761,42 +764,91 @@ $('btnSave').onclick = ()=>{
   a.download='knowledge.json'; a.click(); URL.revokeObjectURL(a.href);
 };
 $('btnPick').onclick = ()=> $('fileIn').click();
+
+/* PDF · 이미지 · 텍스트를 모두 받습니다 */
 $('fileIn').onchange = async e=>{
   images=[];
-  for(const f of [...e.target.files].slice(0,8)){
+  const names=[];
+  for(const f of [...e.target.files].slice(0,10)){
+    const isPdf = f.type==='application/pdf' || /\.pdf$/i.test(f.name);
+    const isImg = f.type.startsWith('image/');
+    const isTxt = f.type.startsWith('text/') || /\.(txt|md|csv|tsv)$/i.test(f.name);
     try{
-      const b64=await new Promise((ok,no)=>{
-        const r=new FileReader();
-        r.onload=()=>ok(r.result.split(',')[1]);
-        r.onerror=()=>no(new Error('읽기 실패'));
-        r.readAsDataURL(f);
-      });
-      images.push({media:f.type==='image/png'?'image/png':(f.type==='image/webp'?'image/webp':'image/jpeg'),b64});
+      if(isTxt){
+        const t = await f.text();
+        if(t.trim()) images.push({kind:'text', text:`[파일 ${f.name}]\n${t.slice(0,20000)}`});
+      }else if(isPdf || isImg){
+        const b64 = await new Promise((ok,no)=>{
+          const r=new FileReader();
+          r.onload=()=>ok(String(r.result).split(',')[1]);
+          r.onerror=()=>no(new Error('읽기 실패'));
+          r.readAsDataURL(f);
+        });
+        if(isPdf){
+          images.push({kind:'pdf', b64});
+        }else{
+          const media = f.type==='image/png' ? 'image/png'
+                      : f.type==='image/webp' ? 'image/webp' : 'image/jpeg';
+          images.push({kind:'image', media, b64});
+        }
+      }else{ continue; }
+      names.push(f.name);
     }catch(err){}
   }
-  $('iCount').textContent = images.length?`선택된 이미지 ${images.length}장`:'선택된 이미지 없음';
-  $('btnRead').disabled = !images.length;
+  $('iCount').textContent = names.length ? `선택 ${names.length}개 — ${names.join(', ').slice(0,60)}` : '선택된 파일 없음';
+  refreshReadBtn();
 };
+
+$('fPaste').oninput = refreshReadBtn;
+function refreshReadBtn(){
+  $('btnRead').disabled = !images.length && !$('fPaste').value.trim();
+}
+
 $('btnRead').onclick = async ()=>{
+  const pasted = $('fPaste').value.trim();
+  if(!images.length && !pasted){ $('iCount').textContent='읽을 파일이나 내용이 없습니다.'; return; }
+
   $('btnRead').disabled=true;
-  $('iCount').textContent='판독 중…';
-  const content=[
-    ...images.map(im=>({type:'image',source:{type:'base64',media_type:im.media,data:im.b64}})),
-    {type:'text',text:`위 이미지는 교육기관 커리큘럼표다. 표에 보이는 과정만 그대로 JSON으로 옮겨라.
-- code는 표기된 과정명·번호 그대로. name은 학습 내용을 적힌 대로 40자 이내로. mode는 대면·비대면·혼합 표기가 있으면.
-- 이미지에 없는 과정을 만들지 마라. 못 읽은 글자는 ?로 남겨라.
+  $('iCount').textContent='판독 중… 분량에 따라 30초까지 걸립니다.';
+
+  const content = [];
+  images.forEach(it=>{
+    if(it.kind==='pdf'){
+      content.push({type:'document',source:{type:'base64',media_type:'application/pdf',data:it.b64}});
+    }else if(it.kind==='image'){
+      content.push({type:'image',source:{type:'base64',media_type:it.media,data:it.b64}});
+    }else if(it.kind==='text'){
+      content.push({type:'text',text:it.text});
+    }
+  });
+  if(pasted) content.push({type:'text',text:`[붙여넣은 내용]\n${pasted}`});
+
+  content.push({type:'text',text:`위 자료는 교육기관의 커리큘럼표다. 자료에 실제로 있는 과정만 그대로 JSON으로 옮겨라.
+
+- code는 표기된 과정명·번호를 그대로. 예: MAYA 5, 3D 기초 2
+- name은 그 과정의 학습 내용을 적힌 대로 45자 이내로. 안 적혀 있으면 빈 문자열.
+- mode는 대면·비대면·혼합 표기가 있을 때만. 없으면 빈 문자열.
+- 자료에 없는 과정을 만들지 마라. 못 읽은 글자는 ?로 남겨라.
+- 자료가 여러 개면 모두 합쳐서 중복 없이 정리하라. 순서는 자료에 나온 순서를 따른다.
+
 아래 JSON만 출력. 설명·코드펜스 금지.
-{"courses":[{"code":"","name":"","mode":""}]}`}
-  ];
+{"courses":[{"code":"","name":"","mode":""}]}`});
+
   try{
-    const r=parseJSON(await callClaude(content,3000));
-    const got=(r.courses||[]).filter(c=>c.code);
-    if(!got.length) throw new Error('과정을 찾지 못했습니다. 표가 선명한 이미지로 다시 시도하세요.');
+    const r=parseJSON(await callClaude(content,4000));
+    const got=(r.courses||[]).filter(c=>c.code && c.code.trim());
+    if(!got.length) throw new Error('과정을 찾지 못했습니다. 표가 선명한 자료로 다시 시도하세요.');
     master=got.map(c=>({code:c.code||'',name:c.name||'',mode:c.mode||''}));
     drawMaster();
-    $('iCount').textContent=`${master.length}개를 읽었습니다. 확인 후 내려받으세요.`;
-  }catch(e){ $('iCount').textContent='판독 실패 — '+e.message; }
-  finally{ $('btnRead').disabled=false; }
+    const unclear = master.filter(c=>(c.code+c.name).includes('?')).length;
+    $('iCount').textContent = `${master.length}개를 읽었습니다.`
+      + (unclear?` 글자를 확실히 못 읽은 항목 ${unclear}개(? 표시)를 고쳐주세요.`:' 위 표에서 확인 후 내려받으세요.');
+    $('iCount').className = unclear ? 'count warnline' : 'count';
+  }catch(e){
+    $('iCount').textContent='판독 실패 — '+e.message;
+    $('iCount').className='count warnline';
+  }
+  finally{ refreshReadBtn(); }
 };
 
 /* ══ 부팅 ══ */
